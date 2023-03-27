@@ -1,11 +1,23 @@
 import {parseCoins, setupWebKeplr} from "cosmwasm";
 
+// 三种网络类型：main, test, local
+const netType = "test";
+
+
+const netInfoByNetType = {
+  chainId: (netType === "main") ? "exchain-66": (netType === "test") ? "exchain-65" : "exchain-67",
+  chainName: (netType === "main") ? "OKC Mainnet": (netType === "test") ? "OKC Testnet" : "OKC Devnet",
+  rpc: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "localhost:26657",
+  rest:  (netType === "main") ? "https://exchainrpc.okex.org" : (netType === "test") ? "https://exchaintestrpc.okex.org" : "localhost:26659",
+  rpcEndpoint: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "localhost:26657",
+}
+
 const config = {
-  // chainId: "cliffnet-1",
-  chainId: "exchain-67",
-  rpcEndpoint: "localhost:26657",
+  chainId: netInfoByNetType.chainId,
+  rpcEndpoint: netInfoByNetType.rpcEndpoint,
   prefix: "ex",
 };
+
 
 async function main() {
   let captain = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
@@ -36,6 +48,8 @@ async function main() {
   console.log(res2);
 }
 
+
+
 window.onload = async () => {
   // Keplr extension injects the offline signer that is compatible with cosmJS.
   // You can get this offline signer from `window.getOfflineSigner(chainId:string)` after load event.
@@ -54,13 +68,13 @@ window.onload = async () => {
         // If the same chain id is already registered, it will resolve and not require the user interactions.
         await window.keplr.experimentalSuggestChain({
           // Chain-id of the Osmosis chain.
-          chainId: "exchain-67",
+          chainId: netInfoByNetType.chainId,
           // The name of the chain to be displayed to the user.
-          chainName: "OKC local dev",
+          chainName: netInfoByNetType.chainName,
           // RPC endpoint of the chain. In this case we are using blockapsis, as it's accepts connections from any host currently. No Cors limitations.
-          rpc: "http://127.0.0.1:26657",
+          rpc: netInfoByNetType.rpc,
           // REST endpoint of the chain.
-          rest: "http://127.0.0.1:8545",
+          rest: netInfoByNetType.rest,
           // Staking coin information
           stakeCurrency: {
             // Coin denomination to be displayed to the user.
