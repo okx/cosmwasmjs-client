@@ -1,15 +1,15 @@
 import {parseCoins, setupWebKeplr} from "cosmwasm";
 
 // 三种网络类型：main, test, local
-const netType = "test";
+const netType = "local";
 
 
 const netInfoByNetType = {
-  chainId: (netType === "main") ? "exchain-66": (netType === "test") ? "exchain-65" : "exchain-67",
-  chainName: (netType === "main") ? "OKC Mainnet": (netType === "test") ? "OKC Testnet" : "OKC Devnet",
-  rpc: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "localhost:26657",
-  rest:  (netType === "main") ? "https://exchainrpc.okex.org" : (netType === "test") ? "https://exchaintestrpc.okex.org" : "localhost:26659",
-  rpcEndpoint: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "localhost:26657",
+  chainId: (netType === "main") ? "exchain-66": (netType === "test") ? "exchain-65" : "exchain-65",
+  chainName: (netType === "main") ? "OKC Mainnet": (netType === "test") ? "OKC Testnet" : "OKC Localhost",
+  rpc: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "http://localhost:8092",
+  rest:  (netType === "main") ? "https://exchainrpc.okex.org" : (netType === "test") ? "https://exchaintestrpc.okex.org" : "http://localhost:8092",
+  rpcEndpoint: (netType === "main") ? "https://exchaintmrpc.okex.org": (netType === "test") ? "https://exchaintesttmrpc.okex.org" : "http://localhost:8092",
 }
 
 const config = {
@@ -163,6 +163,8 @@ window.onload = async () => {
     }
   }
 
+  main();
+
   //   const chainId = "osmosis-1";
 
   // You should request Keplr to enable the wallet.
@@ -189,4 +191,4 @@ window.onload = async () => {
   //document.getElementById("address").append(accounts[0].address);
 };
 
-main();
+
