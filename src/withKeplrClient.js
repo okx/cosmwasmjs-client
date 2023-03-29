@@ -1,7 +1,7 @@
 import {parseCoins, setupWebKeplr} from "cosmwasm";
 
 // 三种网络类型：main, test, local
-const netType = "local";
+const netType = "test";
 
 
 const netInfoByNetType = {
@@ -19,34 +19,170 @@ const config = {
 };
 
 
+var filedata;
+var contractaddress;
+
 async function main() {
-  let captain = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
-  let keplrAddr = "ex1eutyuqqase3eyvwe92caw8dcx5ly8s544q3hmq";
+  // let captain = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
+  // let keplrAddr = "ex1eutyuqqase3eyvwe92caw8dcx5ly8s544q3hmq";
+  // 必须ex前缀的地址
+  let keplrAddr1 = "ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9";
+  let keplrAddr2 = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
 
   const client = await setupWebKeplr(config);
   console.log(client);
   const chainID = await client.getChainId();
   console.log(chainID);
 
-  const res = await client.sendTokens(keplrAddr, captain, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
-  console.log(res);
+  // 应该有一个按钮
+  // const res = await client.sendTokens(keplrAddr1, keplrAddr2, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
+  // console.log(res);
+
+
+
+
+  document.getElementById("oInput").addEventListener('change', function selectedFilechanged( ) {
+    console.log(this.files);
+    var reader = new FileReader();
+    reader.readAsArrayBuffer(this.files[0]);//读取文件的内容
+    reader.onload = function () {
+      filedata = this.result
+    }
+  });
+
+  // 测试合约代码
+  document.getElementById("upload").addEventListener('click', async function selectedFilechanged( ) {
+    var address = keplrAddr1;
+    console.log("upload",address)
+
+    // 1. 上传
+    console.log("wasm updalod addr",address)
+    var result = await client.upload(address,filedata,{"amount":parseCoins("100000000000000000wei"),"gas":"20000000"})
+    console.log("1. wasm 上传完成",result)
+    var codes = await client.getCodes()
+    console.log("get codes",codes)
+    var codeId = result.codeId
+    var code = await client.getCodeDetails(codeId)
+    console.log("get code",code)
+
+    var tx = await client.getTx(result.transactionHash)
+    console.log("get tx",tx)
+
+    tx = await client.searchTx({ height: result.height })
+    console.log("search tx",tx)
+
+
+    // 2. 实例化
+    var initMsg = {"verifier":address, "beneficiary":address}
+    const info = await client.instantiate(address, codeId, initMsg, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":address});
+    console.log("2. wasm 实例化完成",info);
+    var contract = await client.getContract(info.contractAddress);
+    console.log("get contract",contract);
+    contractaddress = info.contractAddress
+    var contracts = await client.getContracts(codeId)
+    console.log("get contracts",contracts)
+    var status = await client.queryContractSmart(contractaddress,{"verifier":{}})
+    console.log("queryContractSmart",status)
+
+    // 3. 执行
+    var result = await client.execute(address,contractaddress,{"release":{}},{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    console.log("3. wasm 执行完成",result)
+
+
+    // 4. 更新管理员
+    var contract = await client.getContract(info.contractAddress);
+    console.log("get contract admin",contract.admin)
+
+    var result = await client.updateAdmin(address,contractaddress,keplrAddr2,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    console.log("update admin完成",result)
+
+    var contract = await client.getContract(info.contractAddress);
+    console.log("get contract admin",contract.admin)
+
+    client.disconnect()
+    var contract = await client.getContract(info.contractAddress);
+    console.log("get contract admin",contract.admin)
+
+  });
+
+  // 升级合约
+  document.getElementById("upgrade").addEventListener('click', async function selectedFilechanged1( ) {
+    var address2 = keplrAddr2;
+
+    // 1. 上传
+    var result = await client.upload(address2,filedata,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    console.log("1. wasm 上传完成", result)
+    var codes = await client.getCodes()
+    console.log("get codes",codes)
+    var codeId = result.codeId
+    var code = await client.getCodeDetails(codeId)
+    console.log("get code",code)
+
+    var tx = await client.getTx(result.transactionHash)
+    console.log("get tx",tx)
+
+    tx = await client.searchTx({ height: result.height })
+    console.log("search tx",tx)
+
+    // 2. 更新
+    var result = await client.migrate(address2,contractaddress,codeId,{"payout": address2},{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    console.log("2. wasm 更新完成(migrate)",result)
+
+    var account = await client.getAccount(address2)
+    console.log("get account",account)
+    var contract = await client.getContract(contractaddress);
+    console.log("get contract",contract)
+
+    var history = await client.getContractCodeHistory(contractaddress);
+    console.log("get contract",history)
+
+    // 3. 清除管理员
+    var result = await client.clearAdmin(address2,contractaddress,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    console.log("wasm clear admin完成", result)
+    var contract = await client.getContract(contractaddress);
+    console.log("get contract admin",contract.admin)
+  });
+
+
+
+
+
 
   // TODO
   // upload wasm code
 
-  const codes = await client.getCodes();
-  console.log(codes);
-  const info = await client.instantiate(keplrAddr, 1, {"decimals":10,"initial_balances":[{"address":keplrAddr,"amount":"100000000"}],"name":"my test token", "symbol":"MTT"}, "hello world", {"amount":parseCoins("20000000000000wei"),"gas":"200000"}, {"funds":parseCoins("1okt")});
-  console.log(info);
-  const contract = await client.getContract(info.contractAddress);
-  console.log(contract);
-  const res3 = await client.execute(keplrAddr, info.contractAddress, {"transfer":{"amount":"10","recipient":captain}}, {"amount":parseCoins("20000000000000wei"),"gas":"200000"}, "", null);
-  console.log(res3);
-  const res4 = await client.queryContractSmart(info.contractAddress, {"balance":{"address":keplrAddr}})
-  console.log(res4);
-  const res2 = await client.queryContractSmart(info.contractAddress, {"balance":{"address":captain}})
-  console.log(res2);
+  // const codes = await client.getCodes();
+  // console.log(codes);
+  // const info = await client.instantiate(keplrAddr, 1, {"decimals":10,"initial_balances":[{"address":keplrAddr,"amount":"100000000"}],"name":"my test token", "symbol":"MTT"}, "hello world", {"amount":parseCoins("20000000000000wei"),"gas":"200000"}, {"funds":parseCoins("1okt")});
+  // console.log(info);
+  // const contract = await client.getContract(info.contractAddress);
+  // console.log(contract);
+  // const res3 = await client.execute(keplrAddr, info.contractAddress, {"transfer":{"amount":"10","recipient":captain}}, {"amount":parseCoins("20000000000000wei"),"gas":"200000"}, "", null);
+  // console.log(res3);
+  // const res4 = await client.queryContractSmart(info.contractAddress, {"balance":{"address":keplrAddr}})
+  // console.log(res4);
+  // const res2 = await client.queryContractSmart(info.contractAddress, {"balance":{"address":captain}})
+  // console.log(res2);
 }
+
+
+
+
+//ArrayBuffer转字符串
+function ab2str(u,f) {
+  var b = new Blob([u]);
+  var r = new FileReader();
+  r.readAsText(b, 'utf-8');
+  r.onload = function (){if(f)f.call(null,r.result)}
+}
+//字符串转字符串ArrayBuffer
+function str2ab(s,f) {
+  var b = new Blob([s],{type:'text/plain;charset=utf-8'});
+  var r = new FileReader();
+  r.readAsArrayBuffer(b);
+  r.onload = function (){if(f)f.call(null,r.result)}
+}
+
 
 
 
@@ -153,7 +289,7 @@ window.onload = async () => {
             average: 250000000,
             high: 400000000
           },
-          features: ["stargate", "ibc-transfer", "no-legacy-stdTx", "ibc-go"],
+          features: ["stargate", "ibc-transfer", "no-legacy-stdTx", "ibc-go", "eth-address-gen","eth-key-sign"],
         });
       } catch {
         alert("Failed to suggest the chain");
