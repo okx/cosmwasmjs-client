@@ -10,7 +10,8 @@
     "client": "webpack-dev-server --config webpack.client.config.js",
     "withsign": "webpack-dev-server --config webpack.sign.config.js",
     "withkeplr": "webpack-dev-server --config webpack.keplr.config.js",
-    "withcontract": "webpack-dev-server --config webpack.contract.config.js"
+    "withcontract": "webpack-dev-server --config webpack.contract.config.js",
+    "remote_withkeplr": "webpack --config webpack.keplr.config.remote.js"
   },
   "bin": "src/cli/bin/cli",
   "repository": {

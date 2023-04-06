@@ -19,8 +19,8 @@ const config = {
 };
 
 
-let filedata;
-let contractaddress;
+let filedata = null;
+let contractaddress = "";
 
 async function main() {
   // let captain = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
@@ -59,6 +59,26 @@ async function main() {
 
 
   // 查询个人账户信息
+  document.getElementById("submitKeplrAddr1").addEventListener('click', async function () {
+    // 读取Keplr中的地址
+    const myAccount = document.getElementById("keplrAddr1").value.trim();
+    if (!myAccount) {
+      alert("您输入的Keplr当前地址为空，请确保输入正确地址");
+      return false;
+    } else if (myAccount.substr(0, 2) !== 'ex') {
+      alert("请输入ex前缀地址");
+      return false;
+    } else if (myAccount.length !== 41) {
+      alert("您输入ex前缀地址长度不正确");
+      return false;
+    } else {
+      keplrAddr1 = myAccount;
+      alert("提交成功，无需重复提交。")
+    }
+    console.log(keplrAddr1);
+  });
+
+
   document.getElementById("qAccount").addEventListener('click', async function () {
     // 读取Keplr中的地址
     let account = await client.getAccount("ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9")
@@ -82,19 +102,60 @@ async function main() {
 
   // 转账
   document.getElementById("send").addEventListener('click', async function () {
-    const res = await client.sendTokens(keplrAddr1, keplrAddr2, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
+    const to = document.getElementById("to").value.trim();
+    if (!to) {
+      alert("接收地址不能为空");
+      return false;
+    } else if (to.substr(0, 2) !== 'ex') {
+      alert("请输入ex前缀地址");
+      return false;
+    } else if (to.length !== 41) {
+      alert("您输入ex前缀地址长度不正确");
+      return false;
+    }
+    const res = await client.sendTokens(keplrAddr1, to, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
     console.log(res);
   });
 
 
 
+  // 加减法合约 demo
+  let demoInfo = null;
+  document.getElementById("demoDeploy").addEventListener('click', async function () {
+    demoInfo = await client.instantiate(keplrAddr1, 224, {"verifier":keplrAddr1, "beneficiary":keplrAddr1}, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":keplrAddr1});
+    console.log(demoInfo);
+    document.getElementById("rDemoDeploy").innerHTML = "加减法合约实例化完成" + JSON.stringify(demoInfo);
+    document.getElementById("demoResult").innerHTML = 0;
+  });
+  document.getElementById("demoAdd").addEventListener('click', async function () {
+    if (!demoInfo) {
+      alert("加减法合约，请先部署再执行Add和Subtract");
+      return false;
+    }
+    const num = document.getElementById("demoAddInput").value.trim();
+    if (!num) {
+      alert("请输入正整数，且不能为空");
+      return false;
+    }
+    var addMsg = {"add":{"delta": num}};
+    var res1 = await client.execute(keplrAddr1, demoInfo.contractAddress, addMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
+    console.log(res1)
+    const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
+    document.getElementById("demoResult").innerHTML = rest2;
+  });
+  document.getElementById("demoSubtract").addEventListener('click', async function () {
+    var subtractMsg = {"subtract":{}};
+    var res1 = await client.execute(keplrAddr1, demoInfo.contractAddress, subtractMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
+    console.log(res1)
+    const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
+    document.getElementById("demoResult").innerHTML = rest2;
+  });
 
-  // 应该有一个按钮
 
 
 
 
-
+  // 合约测试
   document.getElementById("oInput").addEventListener('change', function selectedFilechanged( ) {
     console.log(this.files);
     let reader = new FileReader();
@@ -104,18 +165,44 @@ async function main() {
     }
   });
 
-  // 测试合约代码
+  // 测试合约代码button
   document.getElementById("upload").addEventListener('click', async function selectedFilechanged( ) {
     let address = keplrAddr1;
+    const newAdmin = document.getElementById("keplrAddr2").value.trim();
+    if (!newAdmin) {
+      alert("新admin地址不能为空");
+      return false;
+    } else if (newAdmin.substr(0, 2) !== 'ex') {
+      alert("请输入ex前缀地址");
+      return false;
+    } else if (newAdmin.length !== 41) {
+      alert("您输入ex前缀地址长度不正确");
+      return false;
+    }
+    keplrAddr2 = newAdmin;
+
+    // 1. 上传
+    console.log("wasm updalod addr",address)
+    let result = null;
+    try {
+      result = await client.upload(address,filedata,{"amount":parseCoins("100000000000000000wei"),"gas":"20000000"})
+    } catch (e) {
+      alert("异常：请检查是否已上传合约文件，或Keplr钱包中当前地址是否与"+ address +"一致。" + JSON.stringify(e));
+      throw new Error('异常退出');
+      return false;
+    }
+    if (!result) {
+      return false;
+    }
+
+
     document.getElementById("loading").style.display = 'block';
     console.log("upload",address)
     // HTML展示
     let dom = document.createElement("div"); dom.innerHTML = "开始上传，我的地址：" + address;
     document.getElementById("deployContract").appendChild(dom);
 
-    // 1. 上传
-    console.log("wasm updalod addr",address)
-    let result = await client.upload(address,filedata,{"amount":parseCoins("100000000000000000wei"),"gas":"20000000"})
+
     console.log("1. wasm 上传完成", result)
     // HTML展示
     dom = document.createElement("div"); dom.innerHTML = "1. wasm 上传完成" + JSON.stringify(result);
@@ -125,27 +212,29 @@ async function main() {
     let codes = await client.getCodes()
     console.log("get codes",codes)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "getCodes：" + JSON.stringify(codes);
+    dom = document.createElement("div"); dom.innerHTML = "getCodes：" + JSON.stringify(codes).substr(0, 100) + "......内容较长，请移动光标到文本是否查看完整内容";
+    dom.setAttribute("title", JSON.stringify(result))
     document.getElementById("deployContract").appendChild(dom);
 
     let codeId = result.codeId
     let code = await client.getCodeDetails(codeId)
     console.log("get code",code)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "getCodeDetails：" + JSON.stringify(code);
+    dom = document.createElement("div"); dom.innerHTML = "getCodeDetails：(codeId=" + codeId + ")" + JSON.stringify(code);
     document.getElementById("deployContract").appendChild(dom);
 
     let tx = await client.getTx(result.transactionHash)
     console.log("get tx",tx)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "getTx：" + JSON.stringify(tx);
+    dom = document.createElement("div"); dom.innerHTML = "getTx(hash=" + result.transactionHash + ")：" + JSON.stringify(tx);
     document.getElementById("deployContract").appendChild(dom);
 
 
     tx = await client.searchTx({ height: result.height })
     console.log("search tx",tx)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "searchTx：（height="+ result.height +"）" + JSON.stringify(tx);
+    dom = document.createElement("div"); dom.innerHTML = "searchTx：（height="+ result.height +"）" + JSON.stringify(tx).substr(0, 100) + "......内容较长，请移动光标到文本是否查看完整内容";
+    dom.setAttribute("title", JSON.stringify(tx))
     document.getElementById("deployContract").appendChild(dom);
 
 
@@ -161,7 +250,7 @@ async function main() {
     let contract = await client.getContract(info.contractAddress);
     console.log("get contract",contract);
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "getTx：" + JSON.stringify(tx);
+    dom = document.createElement("div"); dom.innerHTML = "getContract(contractAddress=" + info.contractAddress +  ")：" + JSON.stringify(contract);
     document.getElementById("deployContract").appendChild(dom);
 
     contractaddress = info.contractAddress
@@ -181,7 +270,7 @@ async function main() {
     result = await client.execute(address,contractaddress,{"release":{}},{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
     console.log("3. wasm 执行完成",result)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "3. wasm 执行完成：" + JSON.stringify(result);
+    dom = document.createElement("div"); dom.innerHTML = "3. wasm execute完成：" + JSON.stringify(result);
     document.getElementById("deployContract").appendChild(dom);
 
 
@@ -189,7 +278,7 @@ async function main() {
     contract = await client.getContract(info.contractAddress);
     console.log("get contract admin",contract.admin)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "4. 更新管理员，当前合约管理员是：" + contract.admin;
+    dom = document.createElement("div"); dom.innerHTML = "4. 当前admin是：" + contract.admin;
     document.getElementById("deployContract").appendChild(dom);
 
 
@@ -203,7 +292,7 @@ async function main() {
     contract = await client.getContract(info.contractAddress);
     console.log("get contract admin",contract.admin)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "新合约管理员是：" + contract.admin;
+    dom = document.createElement("div"); dom.innerHTML = "新admin：" + contract.admin;
     document.getElementById("deployContract").appendChild(dom);
 
     client.disconnect()
@@ -214,7 +303,7 @@ async function main() {
     contract = await client.getContract(info.contractAddress);
     console.log("get contract admin",contract.admin)
     // HTML展示
-    dom = document.createElement("div"); dom.innerHTML = "通过info.contractAddress获取管理员地址：" + contract.admin;
+    dom = document.createElement("div"); dom.innerHTML = "通过(contractAddress=" + info.contractAddress +  ")获取admin地址：" + contract.admin;
     document.getElementById("deployContract").appendChild(dom);
 
     document.getElementById("loading").style.display = 'none';
@@ -226,23 +315,62 @@ async function main() {
     let address2 = keplrAddr2;
 
     // 1. 上传
-    let result = await client.upload(address2,filedata,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    let result = null;
+    try {
+      result = await client.upload(address2,filedata,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+    } catch (e) {
+      alert("异常：请检查是否已上传合约文件，或Keplr钱包中地址是否与"+ address2 +"一致。" + JSON.stringify(e));
+      throw new Error('异常退出');
+      return false;
+    }
+    if (!result) {
+      return false;
+    }
+
+
+    document.getElementById("loading2").style.display = 'block';
+    // HTML展示
+    let dom = document.createElement("div"); dom.innerHTML = "开始上传升级后的合约，我的地址：" + address2;
+    document.getElementById("upgradeContract").appendChild(dom);
+
     console.log("1. upgrade wasm 上传完成", result)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "1. upgrade wasm 上传完成：" + JSON.stringify(result);
+    document.getElementById("upgradeContract").appendChild(dom);
+
     let codes = await client.getCodes()
     console.log("get codes",codes)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "getCodes：" + JSON.stringify(codes).substr(0, 100) + "......内容较长，请移动光标到文本上方查看完整内容";
+    dom.setAttribute("title", JSON.stringify(result))
+    document.getElementById("upgradeContract").appendChild(dom);
+
     let codeId = result.codeId
     let code = await client.getCodeDetails(codeId)
     console.log("get code",code)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "getCodeDetails(codeId=" + codeId + ")：" + JSON.stringify(code);
+    document.getElementById("upgradeContract").appendChild(dom);
 
     let tx = await client.getTx(result.transactionHash)
     console.log("get tx",tx)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "getTx(hash=" + result.transactionHash + ")：" + JSON.stringify(tx);
+    document.getElementById("upgradeContract").appendChild(dom);
 
     tx = await client.searchTx({ height: result.height })
     console.log("search tx",tx)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "searchTx：（height="+ result.height +"）" + JSON.stringify(tx).substr(0, 100) + "......内容较长，请移动光标到文本上方查看完整内容";
+    dom.setAttribute("title", JSON.stringify(tx));
+    document.getElementById("upgradeContract").appendChild(dom);
 
     // 2. 更新
     result = await client.migrate(address2,contractaddress,codeId,{"payout": address2},{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
     console.log("2. wasm 更新完成(migrate)",result)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "2. wasm 更新完成(migrate)：" + JSON.stringify(result);
+    document.getElementById("upgradeContract").appendChild(dom);
 
     let account = await client.getAccount(address2)
     console.log("get account",account)
@@ -251,12 +379,24 @@ async function main() {
 
     let history = await client.getContractCodeHistory(contractaddress);
     console.log("get contract",history)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "getContractCodeHistory(contractAddress=" + contractaddress +  ")：" + contract.admin;
+    document.getElementById("upgradeContract").appendChild(dom);
 
     // 3. 清除管理员
     result = await client.clearAdmin(address2,contractaddress,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
     console.log("wasm clear admin完成", result)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "wasm clearAdmin完成：" + JSON.stringify(result);
+    document.getElementById("upgradeContract").appendChild(dom);
+
     contract = await client.getContract(contractaddress);
     console.log("get contract admin",contract.admin)
+    // HTML展示
+    dom = document.createElement("div"); dom.innerHTML = "再次查看 contract admin：" + contract.admin;
+    document.getElementById("upgradeContract").appendChild(dom);
+
+    document.getElementById("loading2").style.display = 'none';
   });
 
 
