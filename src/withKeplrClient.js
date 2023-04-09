@@ -19,19 +19,45 @@ const config = {
 };
 
 
-let filedata = null;
 let contractaddress = "";
 
+// 动态获取一次Keplr最新钱包状态
+async function getLatestKeplrAccount() {
+  const chainId = "exchain-65";
+
+  // Enabling before using the Keplr is recommended.
+  // This method will ask the user whether to allow access if they haven't visited this website.
+  // Also, it will request that the user unlock the wallet if the wallet is locked.
+  await window.keplr.enable(chainId);
+
+  const offlineSigner = window.keplr.getOfflineSigner(chainId);
+
+  // You can get the address/public keys by `getAccounts` method.
+  // It can return the array of address/public key.
+  // But, currently, Keplr extension manages only one address/public key pair.
+  // XXX: This line is needed to set the sender address for SigningCosmosClient.
+  const accounts = await offlineSigner.getAccounts();
+
+  // Initialize the gaia api with the offline signer that is injected by Keplr extension.
+  // const cosmJS = new SigningCosmosClient(
+  //     "https://lcd-cosmoshub.keplr.app",
+  //     accounts[0].address,
+  //     offlineSigner,
+  // );
+
+  console.log('getLatestKeplrAcc method inner: ', accounts[0].address);
+  return accounts[0].address;
+}
+
+
 async function main() {
-  // let captain = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
-  // let keplrAddr = "ex1eutyuqqase3eyvwe92caw8dcx5ly8s544q3hmq";
-  // 必须ex前缀的地址
-  let keplrAddr1 = "ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9";
-  let keplrAddr2 = "ex1h0j8x0v9hs4eq6ppgamemfyu4vuvp2sl0q9p3v";
+  if (!window.keplr) {
+    alert("Please install keplr extension");
+    return false;
+  }
 
   const client = await setupWebKeplr(config);
   console.log(client);
-  console.log(window.keplr);
 
   // 查询id
   document.getElementById("qChainId").addEventListener('click', async function () {
@@ -57,51 +83,38 @@ async function main() {
 
 
 
+  // 第一次获取
+  let keplrCurrentAddr = await getLatestKeplrAccount();
+  let keplrAddr2 = "";
 
   // 查询个人账户信息
-  document.getElementById("submitKeplrAddr1").addEventListener('click', async function () {
-    // 读取Keplr中的地址
-    const myAccount = document.getElementById("keplrAddr1").value.trim();
-    if (!myAccount) {
-      alert("您输入的Keplr当前地址为空，请确保输入正确地址");
-      return false;
-    } else if (myAccount.substr(0, 2) !== 'ex') {
-      alert("请输入ex前缀地址");
-      return false;
-    } else if (myAccount.length !== 41) {
-      alert("您输入ex前缀地址长度不正确");
-      return false;
-    } else {
-      keplrAddr1 = myAccount;
-      alert("提交成功，无需重复提交。")
-    }
-    console.log(keplrAddr1);
-  });
-
-
   document.getElementById("qAccount").addEventListener('click', async function () {
+    keplrCurrentAddr = await getLatestKeplrAccount();
     // 读取Keplr中的地址
-    let account = await client.getAccount("ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9")
+    let account = await client.getAccount(keplrCurrentAddr)
     console.log(account);
     document.getElementById("rAccount").innerHTML = JSON.stringify(account)
   });
 
   // 查询我的余额
   document.getElementById("qBalance").addEventListener('click', async function () {
-    const balance = await client.getBalance("ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9", 'okt');
+    keplrCurrentAddr = await getLatestKeplrAccount();
+    const balance = await client.getBalance(keplrCurrentAddr, 'okt');
     console.log(balance);
     document.getElementById("rBalance").innerHTML = JSON.stringify(balance)
   });
 
   // 查询Sequence
   document.getElementById("qSequence").addEventListener('click', async function () {
-    const sequence = await client.getSequence("ex1s0vrf96rrsknl64jj65lhf89ltwj7lksr7m3r9");
+    keplrCurrentAddr = await getLatestKeplrAccount();
+    const sequence = await client.getSequence(keplrCurrentAddr);
     console.log(sequence);
     document.getElementById("rSequence").innerHTML = JSON.stringify(sequence)
   });
 
   // 转账
   document.getElementById("send").addEventListener('click', async function () {
+    keplrCurrentAddr = await getLatestKeplrAccount();
     const to = document.getElementById("to").value.trim();
     if (!to) {
       alert("接收地址不能为空");
@@ -113,19 +126,26 @@ async function main() {
       alert("您输入ex前缀地址长度不正确");
       return false;
     }
-    const res = await client.sendTokens(keplrAddr1, to, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
+    document.getElementById("sendLoading").style.display = 'block';
+    const res = await client.sendTokens(keplrCurrentAddr, to, parseCoins("1000000000000000000wei"), {"amount":parseCoins("20000000000000wei"),"gas":"200000"});
     console.log(res);
+    document.getElementById("rto").innerHTML = JSON.stringify(res)
+    document.getElementById("sendLoading").style.display = 'none';
   });
 
 
 
   // 加减法合约 demo
   let demoInfo = null;
+  let demoAddr = keplrCurrentAddr; // 用户部署合约后切换钱包，是自己的问题。
   document.getElementById("demoDeploy").addEventListener('click', async function () {
-    demoInfo = await client.instantiate(keplrAddr1, 224, {"verifier":keplrAddr1, "beneficiary":keplrAddr1}, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":keplrAddr1});
+    document.getElementById("demoDeployLoading").style.display = 'block';
+    demoAddr = await getLatestKeplrAccount();
+    demoInfo = await client.instantiate(demoAddr, 224, {"verifier":demoAddr, "beneficiary":demoAddr}, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":demoAddr});
     console.log(demoInfo);
     document.getElementById("rDemoDeploy").innerHTML = "加减法合约实例化完成" + JSON.stringify(demoInfo);
     document.getElementById("demoResult").innerHTML = 0;
+    document.getElementById("demoDeployLoading").style.display = 'none';
   });
   document.getElementById("demoAdd").addEventListener('click', async function () {
     if (!demoInfo) {
@@ -138,14 +158,14 @@ async function main() {
       return false;
     }
     var addMsg = {"add":{"delta": num}};
-    var res1 = await client.execute(keplrAddr1, demoInfo.contractAddress, addMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
+    var res1 = await client.execute(demoAddr, demoInfo.contractAddress, addMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
     console.log(res1)
     const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
     document.getElementById("demoResult").innerHTML = rest2;
   });
   document.getElementById("demoSubtract").addEventListener('click', async function () {
     var subtractMsg = {"subtract":{}};
-    var res1 = await client.execute(keplrAddr1, demoInfo.contractAddress, subtractMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
+    var res1 = await client.execute(demoAddr, demoInfo.contractAddress, subtractMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
     console.log(res1)
     const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
     document.getElementById("demoResult").innerHTML = rest2;
@@ -156,6 +176,7 @@ async function main() {
 
 
   // 合约测试
+  let filedata = null;
   document.getElementById("oInput").addEventListener('change', function selectedFilechanged( ) {
     console.log(this.files);
     let reader = new FileReader();
@@ -167,27 +188,34 @@ async function main() {
 
   // 测试合约代码button
   document.getElementById("upload").addEventListener('click', async function selectedFilechanged( ) {
-    let address = keplrAddr1;
+    keplrCurrentAddr = await getLatestKeplrAccount();
+    let address = keplrCurrentAddr;
+    console.log("wasm updalod addr", address)
+    document.getElementById("loading").style.display = 'block';
+
     const newAdmin = document.getElementById("keplrAddr2").value.trim();
     if (!newAdmin) {
       alert("新admin地址不能为空");
+      document.getElementById("loading").style.display = 'none';
       return false;
     } else if (newAdmin.substr(0, 2) !== 'ex') {
       alert("请输入ex前缀地址");
+      document.getElementById("loading").style.display = 'none';
       return false;
     } else if (newAdmin.length !== 41) {
       alert("您输入ex前缀地址长度不正确");
+      document.getElementById("loading").style.display = 'none';
       return false;
     }
     keplrAddr2 = newAdmin;
 
     // 1. 上传
-    console.log("wasm updalod addr",address)
     let result = null;
     try {
       result = await client.upload(address,filedata,{"amount":parseCoins("100000000000000000wei"),"gas":"20000000"})
     } catch (e) {
-      alert("异常：请检查是否已上传合约文件，或Keplr钱包中当前地址是否与"+ address +"一致。" + JSON.stringify(e));
+      alert("异常：请检查是否已上传合约文件，" + JSON.stringify(e));
+      document.getElementById("loading").style.display = 'none';
       throw new Error('异常退出');
       return false;
     }
@@ -195,11 +223,10 @@ async function main() {
       return false;
     }
 
-
     document.getElementById("loading").style.display = 'block';
     console.log("upload",address)
     // HTML展示
-    let dom = document.createElement("div"); dom.innerHTML = "开始上传，我的地址：" + address;
+    let dom = document.createElement("div"); dom.innerHTML = "uploading, my address：" + address;
     document.getElementById("deployContract").appendChild(dom);
 
 
@@ -311,22 +338,39 @@ async function main() {
   });
 
   // 升级合约
-  document.getElementById("upgrade").addEventListener('click', async function selectedFilechanged1( ) {
-    let address2 = keplrAddr2;
+  let filedata2 = null;
+  document.getElementById("upgradeInput").addEventListener('change', function selectedFilechanged( ) {
+    console.log(this.files);
+    let reader = new FileReader();
+    reader.readAsArrayBuffer(this.files[0]);//读取文件的内容
+    reader.onload = function () {
+      filedata2 = this.result
+    }
+  });
+
+  document.getElementById("upgrade").addEventListener('click', async function selectedFilechanged2( ) {
+    keplrCurrentAddr = await getLatestKeplrAccount();
+    let address2 = keplrCurrentAddr;
+    document.getElementById("loading2").style.display = 'block';
+    if (address2 !== keplrAddr2) {
+      alert("请在Keplr切换至部署合约时填写的账号地址");
+      document.getElementById("loading2").style.display = 'none';
+      return false;
+    }
 
     // 1. 上传
     let result = null;
     try {
-      result = await client.upload(address2,filedata,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
+      result = await client.upload(address2,filedata2,{"amount":parseCoins("200000000000000000wei"),"gas":"20000000"})
     } catch (e) {
-      alert("异常：请检查是否已上传合约文件，或Keplr钱包中地址是否与"+ address2 +"一致。" + JSON.stringify(e));
+      alert("异常：请检查是否已上传合约文件，" + JSON.stringify(e));
+      document.getElementById("loading2").style.display = 'none';
       throw new Error('异常退出');
       return false;
     }
     if (!result) {
       return false;
     }
-
 
     document.getElementById("loading2").style.display = 'block';
     // HTML展示
