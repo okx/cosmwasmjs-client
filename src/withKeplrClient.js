@@ -195,7 +195,7 @@ async function main() {
     } else if (to.substr(0, 2) !== '0x') {
       alert("请输入0x前缀地址");
       return false;
-    } else if (newAdmin.length !== 42) {
+    } else if (to.length !== 42) {
       alert("您输入0x前缀地址长度不正确");
       document.getElementById("loading").style.display = 'none';
       return false;
@@ -233,18 +233,22 @@ async function main() {
       alert("请输入正整数，且不能为空");
       return false;
     }
+    document.getElementById("demoDeployLoading").style.display = 'block';
     var addMsg = {"add":{"delta": num}};
     var res1 = await client.execute(demoAddr, demoInfo.contractAddress, addMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
     console.log(res1)
     const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
     document.getElementById("demoResult").innerHTML = rest2;
+    document.getElementById("demoDeployLoading").style.display = 'none';
   });
   document.getElementById("demoSubtract").addEventListener('click', async function () {
+    document.getElementById("demoDeployLoading").style.display = 'block';
     var subtractMsg = {"subtract":{}};
     var res1 = await client.execute(demoAddr, demoInfo.contractAddress, subtractMsg,  {"amount": parseCoins("200000000000000000wei"),"gas":"20000000"},'')
     console.log(res1)
     const rest2 = await client.queryContractSmart(demoInfo.contractAddress, {"get_counter": {}});
     document.getElementById("demoResult").innerHTML = rest2;
+    document.getElementById("demoDeployLoading").style.display = 'none';
   });
 
 
