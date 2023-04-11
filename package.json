@@ -49,7 +49,6 @@
     "@cosmjs/proto-signing": "^0.28.3",
     "@cosmjs/stargate": "^0.28.3",
     "@cosmjs/utils": "^0.28.3",
-    "@okexchain/javascript-sdk": "0.0.32",
     "bech32": "^1.1.4",
     "bn.js": "^4.12.0",
     "cosmwasm": "^1.1.1",

@@ -9,6 +9,7 @@ module.exports = {
       path: require.resolve("path-browserify")
     },
   },
+  mode: "production",
   entry: {
     main: "./src/withKeplrClient.js",
   },
