@@ -1,4 +1,9 @@
 import {parseCoins, setupWebKeplr} from "cosmwasm";
+import _ from "lodash"
+import bech32 from "bech32"
+import { Buffer } from "buffer"
+import BN from 'bn.js'
+import Hash from "eth-lib/lib/hash"
 
 // 三种网络类型：main, test, local
 const netType = "test";
@@ -17,6 +22,71 @@ const config = {
   rpcEndpoint: netInfoByNetType.rpcEndpoint,
   prefix: "ex",
 };
+
+
+
+function _decodeAddressToBuffer (addr) {
+  const decodedAddress = bech32.decode(addr)
+  return Buffer.from(bech32.fromWords(decodedAddress.words))
+}
+function _buf2hex(buffer) { // buffer is an ArrayBuffer
+  return Array.prototype.map.call(new Uint8Array(buffer), x => ('00' + x.toString(16)).slice(-2)).join('');
+}
+function _isHexStrict (hex) {
+  return ((_.isString(hex) || _.isNumber(hex)) && /^(-)?0x[0-9a-f]*$/i.test(hex));
+};
+var SHA3_NULL_S = '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470';
+function _sha3 (value) {
+  if (BN.isBN(value)) {
+    value = value.toString();
+  }
+
+  if (_isHexStrict(value) && /^0x/i.test((value).toString())) {
+    value = hexToBytes(value);
+  }
+
+  var returnValue = Hash.keccak256(value); // jshint ignore:line
+
+  if(returnValue === SHA3_NULL_S) {
+    return null;
+  } else {
+    return returnValue;
+  }
+}
+function _toChecksumAddress (address) {
+  if (typeof address === 'undefined') return '';
+
+  if (!/^(0x)?[0-9a-f]{40}$/i.test(address))
+    throw new Error('Given address "'+ address +'" is not a valid Ethereum address.');
+
+  address = address.toLowerCase().replace(/^0x/i,'');
+  var addressHash = _sha3(address).replace(/^0x/i,'');
+  var checksumAddress = '0x';
+
+  for (var i = 0; i < address.length; i++ ) {
+    // If ith character is 8 to f then make it uppercase
+    if (parseInt(addressHash[i], 16) > 7) {
+      checksumAddress += address[i].toUpperCase();
+    } else {
+      checksumAddress += address[i];
+    }
+  }
+  return checksumAddress;
+}
+
+
+// 0x->ex地址
+function encodeAddressToBech32 (hexAddr) {
+  hexAddr = hexAddr.slice(0, 2) === '0x' ? hexAddr.slice(2) : hexAddr
+  const words = bech32.toWords(Buffer.from(hexAddr, "hex"))
+  return bech32.encode("ex", words)
+}
+// ex->0x地址
+function convertBech32ToHex (bech32Address) {
+  const address = _decodeAddressToBuffer(bech32Address)
+  const hexAddress = _toChecksumAddress("0x" + _buf2hex(address))
+  return hexAddress
+}
 
 
 let contractaddress = "";
@@ -115,15 +185,19 @@ async function main() {
   // 转账
   document.getElementById("send").addEventListener('click', async function () {
     keplrCurrentAddr = await getLatestKeplrAccount();
-    const to = document.getElementById("to").value.trim();
+    let to = document.getElementById("to").value.trim();
+    console.log("用户输入的0x地址：", to);
+    // to = encodeAddressToBech32(to);
+    console.log("转换后的ex地址", to);
     if (!to) {
       alert("接收地址不能为空");
       return false;
-    } else if (to.substr(0, 2) !== 'ex') {
-      alert("请输入ex前缀地址");
+    } else if (to.substr(0, 2) !== '0x') {
+      alert("请输入0x前缀地址");
       return false;
-    } else if (to.length !== 41) {
-      alert("您输入ex前缀地址长度不正确");
+    } else if (newAdmin.length !== 42) {
+      alert("您输入0x前缀地址长度不正确");
+      document.getElementById("loading").style.display = 'none';
       return false;
     }
     document.getElementById("sendLoading").style.display = 'block';
@@ -141,7 +215,9 @@ async function main() {
   document.getElementById("demoDeploy").addEventListener('click', async function () {
     document.getElementById("demoDeployLoading").style.display = 'block';
     demoAddr = await getLatestKeplrAccount();
-    demoInfo = await client.instantiate(demoAddr, 224, {"verifier":demoAddr, "beneficiary":demoAddr}, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":demoAddr});
+    // msg必须是0x
+    const msg = {"verifier":convertBech32ToHex(demoAddr), "beneficiary":convertBech32ToHex(demoAddr)};
+    demoInfo = await client.instantiate(demoAddr, 224, msg, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":demoAddr});
     console.log(demoInfo);
     document.getElementById("rDemoDeploy").innerHTML = "加减法合约实例化完成" + JSON.stringify(demoInfo);
     document.getElementById("demoResult").innerHTML = 0;
@@ -190,20 +266,22 @@ async function main() {
   document.getElementById("upload").addEventListener('click', async function selectedFilechanged( ) {
     keplrCurrentAddr = await getLatestKeplrAccount();
     let address = keplrCurrentAddr;
+    console.log("您Keplr中的地址：", address);
+    let address_0x_prefix = convertBech32ToHex(address);
+    console.log("转换您Keplr的地址为0x地址", address_0x_prefix);
     console.log("wasm updalod addr", address)
     document.getElementById("loading").style.display = 'block';
-
     const newAdmin = document.getElementById("keplrAddr2").value.trim();
     if (!newAdmin) {
       alert("新admin地址不能为空");
       document.getElementById("loading").style.display = 'none';
       return false;
-    } else if (newAdmin.substr(0, 2) !== 'ex') {
-      alert("请输入ex前缀地址");
+    } else if (newAdmin.substring(0, 2) !== '0x') {
+      alert("请输入0x前缀地址");
       document.getElementById("loading").style.display = 'none';
       return false;
-    } else if (newAdmin.length !== 41) {
-      alert("您输入ex前缀地址长度不正确");
+    } else if (newAdmin.length !== 42) {
+      alert("您输入0x前缀地址长度不正确");
       document.getElementById("loading").style.display = 'none';
       return false;
     }
@@ -212,7 +290,9 @@ async function main() {
     // 1. 上传
     let result = null;
     try {
+      // 这里只能传ex
       result = await client.upload(address,filedata,{"amount":parseCoins("100000000000000000wei"),"gas":"20000000"})
+      console.log('result', result);
     } catch (e) {
       alert("异常：请检查是否已上传合约文件，" + JSON.stringify(e));
       document.getElementById("loading").style.display = 'none';
@@ -222,6 +302,7 @@ async function main() {
     if (!result) {
       return false;
     }
+
 
     document.getElementById("loading").style.display = 'block';
     console.log("upload",address)
@@ -266,7 +347,8 @@ async function main() {
 
 
     // 2. 实例化
-    let initMsg = {"verifier":address, "beneficiary":address}
+    // initMsg必须是0x
+    let initMsg = {"verifier": convertBech32ToHex(address), "beneficiary": convertBech32ToHex(address)}
     const info = await client.instantiate(address, codeId, initMsg, "hello world", {"amount":parseCoins("200000000000000000wei"),"gas":"20000000"},{"funds":[{"denom":"okt","amount":"1000000000000000000"}],"admin":address});
     console.log("2. wasm 实例化完成",info);
     // HTML展示
@@ -352,7 +434,7 @@ async function main() {
     keplrCurrentAddr = await getLatestKeplrAccount();
     let address2 = keplrCurrentAddr;
     document.getElementById("loading2").style.display = 'block';
-    if (address2 !== keplrAddr2) {
+    if (convertBech32ToHex(address2) !== keplrAddr2) {
       alert("请在Keplr切换至部署合约时填写的账号地址");
       document.getElementById("loading2").style.display = 'none';
       return false;
